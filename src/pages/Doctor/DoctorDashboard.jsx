@@ -1,55 +1,51 @@
 import React, { useState, useEffect, useContext } from 'react'
-import { AdminContext } from '../../context/AdminContext'
+import { DoctorContext } from '../../context/DoctorContext'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 
-const AllAppointments = () => {
-    const { backendUrl, aToken } = useContext(AdminContext)
+const DoctorDashboard = () => {
+    const { backendUrl, dToken, doctor, logout } = useContext(DoctorContext)
     const [appointments, setAppointments] = useState([])
     const [loading, setLoading] = useState(true)
-    const [filter, setFilter] = useState('all')
-    const [searchTerm, setSearchTerm] = useState('')
+    const [stats, setStats] = useState({
+        total: 0,
+        pending: 0,
+        completed: 0,
+        cancelled: 0
+    })
 
     const fetchAppointments = async () => {
         try {
-            const { data } = await axios.get(`${backendUrl}/api/admin/appointments`, {
-                headers: { Authorization: `Bearer ${aToken}` }
+            const { data } = await axios.get(`${backendUrl}/api/doctor/appointments`, {
+                headers: { Authorization: `Bearer ${dToken}` }
             })
             if (data.success) {
                 setAppointments(data.appointments)
+                
+                setStats({
+                    total: data.appointments.length,
+                    pending: data.appointments.filter(a => a.status === 'pending' && !a.cancelled).length,
+                    completed: data.appointments.filter(a => a.status === 'completed').length,
+                    cancelled: data.appointments.filter(a => a.cancelled).length
+                })
             }
         } catch (error) {
-            toast.error('Failed to fetch appointments')
+            console.error('Failed to fetch appointments', error)
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
-        if (aToken) fetchAppointments()
-    }, [aToken])
-
-    const handleCancelAppointment = async (id) => {
-        if (!window.confirm('Are you sure you want to cancel this appointment?')) return
-        try {
-            const { data } = await axios.put(`${backendUrl}/api/admin/appointments/${id}/cancel`, {}, {
-                headers: { Authorization: `Bearer ${aToken}` }
-            })
-            if (data.success) {
-                toast.success('Appointment cancelled')
-                fetchAppointments()
-            }
-        } catch (error) {
-            toast.error('Failed to cancel appointment')
-        }
-    }
+        if (dToken && doctor) fetchAppointments()
+    }, [dToken, doctor])
 
     const handleStatusChange = async (id, newStatus) => {
         try {
             const { data } = await axios.put(
                 `${backendUrl}/api/admin/appointments/${id}/status`,
                 { status: newStatus },
-                { headers: { Authorization: `Bearer ${aToken}` } }
+                { headers: { Authorization: `Bearer ${dToken}` } }
             )
             if (data.success) {
                 toast.success(`Appointment marked as ${newStatus}`)
@@ -60,23 +56,25 @@ const AllAppointments = () => {
         }
     }
 
-    const filteredAppointments = appointments.filter(apt => {
-        const matchesFilter = filter === 'all' || 
-            (filter === 'pending' && apt.status === 'pending' && !apt.cancelled) ||
-            (filter === 'confirmed' && apt.status === 'confirmed' && !apt.cancelled) ||
-            (filter === 'in-progress' && apt.status === 'in-progress' && !apt.cancelled) ||
-            (filter === 'completed' && apt.status === 'completed' && !apt.cancelled) ||
-            (filter === 'failed' && apt.status === 'failed' && !apt.cancelled) ||
-            (filter === 'no-show' && apt.status === 'no-show' && !apt.cancelled) ||
-            (filter === 'cancelled' && apt.cancelled)
-        
-        const searchLower = searchTerm.toLowerCase()
-        const matchesSearch = !searchTerm || 
-            apt.docData?.name?.toLowerCase().includes(searchLower) ||
-            apt.userData?.name?.toLowerCase().includes(searchLower)
-        
-        return matchesFilter && matchesSearch
-    })
+    const handleCancelAppointment = async (id) => {
+        if (!window.confirm('Are you sure you want to cancel this appointment?')) return
+        try {
+            const { data } = await axios.put(`${backendUrl}/api/admin/appointments/${id}/cancel`, {}, {
+                headers: { Authorization: `Bearer ${dToken}` }
+            })
+            if (data.success) {
+                toast.success('Appointment cancelled')
+                fetchAppointments()
+            }
+        } catch (error) {
+            toast.error('Failed to cancel appointment')
+        }
+    }
+
+    const handleLogout = () => {
+        logout()
+        window.location.href = '/doctor-login'
+    }
 
     const formatDate = (timestamp) => {
         const date = new Date(timestamp)
@@ -96,55 +94,56 @@ const AllAppointments = () => {
     }
 
     return (
-        <div className="p-4 md:p-6">
+        <div className="p-4 md:p-6 min-h-screen bg-gray-50">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">All Appointments</h2>
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full sm:w-48 px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                        />
-                        <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </div>
-                    <select
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                    >
-                        <option value="all">All</option>
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="failed">Failed</option>
-                        <option value="no-show">No Show</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Doctor Dashboard</h2>
+                    <p className="text-gray-500">Welcome, Dr. {doctor?.name}</p>
+                </div>
+                <button
+                    onClick={handleLogout}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                    Logout
+                </button>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white rounded-xl shadow-sm p-4 md:p-6">
+                    <p className="text-gray-500 text-sm">Total</p>
+                    <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats.total}</p>
+                </div>
+                <div className="bg-yellow-50 rounded-xl shadow-sm p-4 md:p-6">
+                    <p className="text-yellow-600 text-sm">Pending</p>
+                    <p className="text-2xl md:text-3xl font-bold text-yellow-700">{stats.pending}</p>
+                </div>
+                <div className="bg-green-50 rounded-xl shadow-sm p-4 md:p-6">
+                    <p className="text-green-600 text-sm">Completed</p>
+                    <p className="text-2xl md:text-3xl font-bold text-green-700">{stats.completed}</p>
+                </div>
+                <div className="bg-red-50 rounded-xl shadow-sm p-4 md:p-6">
+                    <p className="text-red-600 text-sm">Cancelled</p>
+                    <p className="text-2xl md:text-3xl font-bold text-red-700">{stats.cancelled}</p>
                 </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="p-4 border-b">
+                    <h3 className="text-lg font-semibold text-gray-800">My Appointments</h3>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doctor</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {filteredAppointments.map((apt) => (
+                            {appointments.map((apt) => (
                                 <tr key={apt._id} className="hover:bg-gray-50">
                                     <td className="px-4 py-4">
                                         <div>
@@ -152,15 +151,8 @@ const AllAppointments = () => {
                                             <p className="text-sm text-gray-500">{apt.userData?.email || 'N/A'}</p>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4">
-                                        <div>
-                                            <p className="font-medium text-gray-900">{apt.docData?.name || 'N/A'}</p>
-                                            <p className="text-sm text-gray-500">{apt.docData?.speciality || 'N/A'}</p>
-                                        </div>
-                                    </td>
                                     <td className="px-4 py-4 text-gray-600">{formatDate(apt.date)}</td>
                                     <td className="px-4 py-4 text-gray-600">{apt.slotTime}</td>
-                                    <td className="px-4 py-4 text-gray-600">${apt.amount}</td>
                                     <td className="px-4 py-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                                             apt.cancelled 
@@ -169,13 +161,7 @@ const AllAppointments = () => {
                                                     ? 'bg-green-100 text-green-800'
                                                     : apt.status === 'confirmed'
                                                         ? 'bg-blue-100 text-blue-800'
-                                                        : apt.status === 'in-progress'
-                                                            ? 'bg-purple-100 text-purple-800'
-                                                            : apt.status === 'failed'
-                                                                ? 'bg-red-100 text-red-800'
-                                                                : apt.status === 'no-show'
-                                                                    ? 'bg-gray-100 text-gray-800'
-                                                                    : 'bg-yellow-100 text-yellow-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
                                         }`}>
                                             {apt.cancelled ? 'Cancelled' : apt.status}
                                         </span>
@@ -186,7 +172,7 @@ const AllAppointments = () => {
                                                 <select
                                                     value={apt.status}
                                                     onChange={(e) => handleStatusChange(apt._id, e.target.value)}
-                                                    className={`px-2 py-1 text-xs rounded-full border-0 cursor-pointer focus:ring-2 ${
+                                                    className={`px-2 py-1 text-xs rounded-full border-0 cursor-pointer ${
                                                         apt.status === 'completed' 
                                                             ? 'bg-green-100 text-green-800' 
                                                             : apt.status === 'confirmed'
@@ -219,7 +205,7 @@ const AllAppointments = () => {
                                             </div>
                                         )}
                                         {apt.cancelled && (
-                                            <span className="text-gray-400 text-sm">-</span>
+                                            <span className="text-gray-400 text-sm">Cancelled</span>
                                         )}
                                     </td>
                                 </tr>
@@ -227,7 +213,7 @@ const AllAppointments = () => {
                         </tbody>
                     </table>
                 </div>
-                {filteredAppointments.length === 0 && (
+                {appointments.length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                         No appointments found
                     </div>
@@ -237,4 +223,4 @@ const AllAppointments = () => {
     )
 }
 
-export default AllAppointments
+export default DoctorDashboard

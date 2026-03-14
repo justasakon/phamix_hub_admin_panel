@@ -1,15 +1,16 @@
-import React, { useState, useContext } from 'react'
-import { AdminContext } from '../context/AdminContext'
+import React, { useState, useContext } from "react";
+import { DoctorContext } from "../../context/DoctorContext";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from 'react-toastify'
 import axios from 'axios'
-import { Link } from 'react-router-dom'
 
-const Login = () => {
+const DoctorLogin = () => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
-    const { backendUrl, setAToken } = useContext(AdminContext)
+    const { backendUrl, setDToken } = useContext(DoctorContext)
+    const navigate = useNavigate()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -21,12 +22,13 @@ const Login = () => {
 
         setLoading(true)
         try {
-            const { data } = await axios.post(`${backendUrl}/api/admin/login`, { email, password })
+            const { data } = await axios.post(`${backendUrl}/api/doctor/login`, { email, password })
             
             if (data.success) {
-                setAToken(data.token)
-                localStorage.setItem('aToken', data.token)
+                setDToken(data.token)
+                localStorage.setItem('dToken', data.token)
                 toast.success('Login successful!')
+                navigate('/doctor-dashboard')
             } else {
                 toast.error(data.message || 'Invalid credentials')
             }
@@ -43,7 +45,7 @@ const Login = () => {
                 <div className="bg-white rounded-2xl shadow-xl p-8">
                     <div className="text-center mb-8">
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Phamix Hub</h1>
-                        <p className="text-gray-500">Admin Login</p>
+                        <p className="text-gray-500">Doctor Login</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -55,7 +57,6 @@ const Login = () => {
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                                 placeholder="email"
-                                
                             />
                         </div>
 
@@ -106,8 +107,8 @@ const Login = () => {
                             )}
                         </button>
                         <div className="text-center mt-4">
-                            <Link to="/doctor-login" className="text-sm text-green-600 hover:text-green-700 font-medium">
-                                Doctor Login
+                            <Link to="/" className="text-sm text-green-600 hover:text-green-700 font-medium">
+                                Admin Login
                             </Link>
                         </div>
                     </form>
@@ -117,4 +118,4 @@ const Login = () => {
     )
 }
 
-export default Login
+export default DoctorLogin
